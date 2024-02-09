@@ -9,5 +9,5 @@ threshold_bp: 15000
 #RESOURCES
 mem_default: 24 #GB
 mem_large: 250 #GB
-time_min: 120
+time_default: 5
 threads: 8

@@ -14,7 +14,6 @@ rule all_gather:
 rule sketch_reads:
     input:
         get_quality_controlled_reads,
-        
     output:
         sketch="Intermediate/subspecies/sketch_samples/{sample}.sig",
     conda:
@@ -24,18 +23,16 @@ rule sketch_reads:
     threads: config["threads"]
     resources:
         mem_mb=config["mem_default"]*1024,
-        time_min=config["time_min"],
+        runtime=config["time_default"] * 60,
         cpus_per_task=config["threads"],
     params:
         kmer_len=config["kmer_len"],
         scaled=config["scaled"],
         mem=config["mem_default"]*1024 * 1000000 * 0.9, # bytes?
     shell:
-        "mkdir -p output/sketch_samples "
-        " ; \n "
         "sourmash sketch dna "
         " -p k={params.kmer_len},abund,scaled={params.scaled} "
-        " {input}/*.fastq.gz "
+        " {input} "
         " --merge {wildcards.sample} "
         " -o {output.sketch} &> {log}"
 
@@ -51,8 +48,8 @@ rule gather:
         "log/subspecies_profiler/gather/{sample}.log",
     threads: 1
     resources:
-        mem_mb=config["mem_default"],
-        time_min=int(config["time_min"]),
+        mem_mb=config["mem_default"] * 1024,
+        runtime=config["time_default"] * 60,
     params:
         kmer_len=config["kmer_len"],
         scaled=config["scaled"],
@@ -60,7 +57,6 @@ rule gather:
         threshold_bp=config["threshold_bp"],
         scaled_downsample=config["scaled_downsample"],
     shell:
-        "mkdir -p output/gather && "
         "sourmash gather "
         " -k {params.kmer_len} "
         " --threshold-bp={params.threshold_bp} "
