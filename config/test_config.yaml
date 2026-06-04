@@ -1,0 +1,11 @@
+db_path: HuMSub_51_1000.sbt.zip
+sample_table: test/samples.tsv
+trim_reads: False
+kmer_len: 51
+scaled: 1000
+scaled_downsample: 1000
+threshold_bp: 15000
+tmp_dir: /tmp
+mem_mb: 4000
+time_min: 60
+threads: 2

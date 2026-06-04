@@ -34,6 +34,7 @@ def load_sample_table(sample_table="samples.tsv"):
 sampleTable = load_sample_table(config.get("sample_table", "samples.tsv"))
 
 SAMPLES = sampleTable.index.values
+logger.info(f"Found {len(SAMPLES)} samples in sampleTable")
 if sampleTable.columns.str.contains("R2").any():
     MULTIFILE_FRACTIONS = ["R1", "R2"]
 else:

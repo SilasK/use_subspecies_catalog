@@ -1,4 +1,4 @@
-import os, glob
+import os, glob, sys
 
 from snakemake.shell import shell
 import logging, traceback

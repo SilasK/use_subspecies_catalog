@@ -1,5 +1,5 @@
-db_path: /home/users/t/trickovi/scratch/sourmash/sourmash-hash-manipulation-21/51_100_union/output/specific_hashomes.sbt.zip
-sample_table: /home/users/t/trickovi/shared_scratch/datasets/CAMI/new_posthumgut/samples.tsv
+db_path: HuMSub_51_1000.sbt.zip
+# sample_table: /home/users/t/trickovi/shared_scratch/datasets/CAMI/new_posthumgut/samples.tsv
 trim_reads: False
 
 
@@ -10,7 +10,7 @@ threshold_bp: 15000
 
 
 #RESOURCES
-tmp_dir: /scratch
+tmp_dir: /tmp
 mem_mb: 24000
-time_min: 120
+time_min: 240
 threads: 1

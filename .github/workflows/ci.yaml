@@ -1,0 +1,71 @@
+name: Test subspecies quantification pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup conda (mambaforge)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-variant: Mambaforge
+          miniforge-version: latest
+          use-mamba: true
+          channels: conda-forge,bioconda,defaults
+
+      - name: Cache conda env
+        uses: actions/cache@v4
+        with:
+          path: .snakemake/conda
+          key: conda-${{ runner.os }}-sourmash-${{ hashFiles('workflow/envs/sourmash.yaml') }}
+
+      - name: Cache database
+        uses: actions/cache@v4
+        with:
+          path: HuMSub_51_1000.sbt.zip
+          key: db-${{ runner.os }}-humsub51
+
+      - name: Download database
+        run: |
+          if [ ! -f HuMSub_51_1000.sbt.zip ]; then
+            curl -L -o HuMSub_51_1000.sbt.zip \
+              "https://zenodo.org/records/15862096/files/HuMSub_51_1000.sbt.zip?download=1"
+          fi
+          ls -lh HuMSub_51_1000.sbt.zip
+
+      - name: Download test reads
+        run: |
+          mkdir -p test
+          curl -L -o test/test_reads.tar.gz \
+            "https://zenodo.org/records/3992790/files/test_reads.tar.gz?download=1"
+          tar -xzf test/test_reads.tar.gz -C test/
+          ls -lh test/test_reads/
+
+      - name: Run pipeline
+        run: |
+          snakemake -s workflow/Snakefile --configfile config/test_config.yaml \
+            --use-conda -j2
+
+      - name: Validate output
+        run: |
+          echo "=== Pipeline output ==="
+          cat output/combined_results.csv
+          echo "---"
+          TAXA=$(tail -n +2 output/combined_results.csv | wc -l)
+          echo "Found $TAXA subspecies across 2 samples"
+          if [ "$TAXA" -gt 0 ]; then echo "Test PASSED"; else echo "Test FAILED"; exit 1; fi

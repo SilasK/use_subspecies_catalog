@@ -1,48 +1,42 @@
 import os
 
-
-SOURMASH_ENV='envs/sourmash.yaml' # or 'sourmash'
+SOURMASH_ENV = "envs/sourmash.yaml"
 
 configfile: f"{os.path.dirname(workflow.snakefile)}/../config/default_config.yaml"
 
-SAMPLES, = glob_wildcards("output/trimmed_reads/{sample}")
+if not config["trim_reads"]:
+    localrules:
+        trim_reads,
 
-if config['trim_reads'] == False:
-    localrules: trim_reads
 include: "sample_table.smk"
 
 rule all_gather:
     input:
-        "output/gather.tar.gz",
-        "output/combined_gather.csv"
-
-        
+        "output/combined_results.csv"
 
 rule trim_reads:
     input:
         get_quality_controlled_reads,
     output:
-        trimmed_reads=directory('output/trimmed_reads/{sample}'),
+        trimmed_reads=directory("output/trimmed_reads/{sample}"),
     conda:
         SOURMASH_ENV
     log:
         "output/log/trimm_reads/{sample}.log",
-    threads: 1,
+    threads: 1
     resources:
         mem_mb=int(config["mem_mb"]),
         time_min=int(config["time_min"]),
-        cpus_per_task=1
+        cpus_per_task=1,
     params:
         mem=int(config["mem_mb"]) * 1000000 * 0.9,
         tmp_dir=config["tmp_dir"],
     script:
         "scripts/trim_reads.py"
 
-
 rule sketch_reads:
     input:
-        #rules.trim_reads.output.trimmed_reads,
-        get_quality_controlled_reads
+        get_quality_controlled_reads,
     output:
         sketch="output/sketch_samples/{sample}.sig",
     conda:
@@ -51,80 +45,51 @@ rule sketch_reads:
         "output/log/sketch_reads/{sample}.log",
     threads: int(config["threads"])
     resources:
-        mem_mb=int(config["mem_mb"]),
-        time_min=int(config["time_min"]),
-        tmpdir=config['tmp_dir'],
-        cpus_per_task=config['threads']
+        mem="2G",
+        runtime="1h",
     params:
         kmer_len=config["kmer_len"],
         scaled=config["scaled"],
-        tmp_dir=config["tmp_dir"],
-        mem=int(config["mem_mb"]) * 1000000 * 0.9,
     shell:
-        "mkdir -p output/sketch_samples && "
-        "sourmash sketch dna -p k={params.kmer_len},abund,scaled={params.scaled} {input} --merge {wildcards.sample} -o {output.sketch} &> {log}"
+        "sourmash sketch dna -p k={params.kmer_len},abund,scaled={params.scaled} {input} --name {wildcards.sample} -o {output.sketch} &> {log}"
 
 rule gather:
     input:
         sample_sketch=rules.sketch_reads.output.sketch,
+        db=config["db_path"],
     output:
-        gather="output/gather/{sample}.csv"
+        gather="output/gather/{sample}.csv",
     conda:
         SOURMASH_ENV
     log:
-        "output/log/gather/{sample}.log"
-    threads: 1,
+        "output/log/gather/{sample}.log",
+    threads: int(config["threads"])
     resources:
-        mem_mb=int(config["mem_mb"]),
-        time_min=int(config["time_min"]),
-        tmpdir=config['tmp_dir'],
+        mem="5G",
+        runtime="2h",
     params:
-        kmer_len=config['kmer_len'],
-        scaled=config['scaled'],
-        db_path=config['db_path'],
-        threshold_bp=config['threshold_bp'],
-        scaled_downsample=config['scaled_downsample']
+        kmer_len=config["kmer_len"],
+        threshold_bp=config["threshold_bp"],
+        scaled=config["scaled_downsample"],
     shell:
-        "mkdir -p output/gather && "
-        "sourmash gather -k {params.kmer_len} --threshold-bp={params.threshold_bp} --scaled {params.scaled_downsample} -o {output.gather} {input.sample_sketch} {params.db_path} &> {log}"
+        "sourmash gather -k {params.kmer_len} --threshold-bp={params.threshold_bp} --scaled {params.scaled} -o {output.gather} {input.sample_sketch} {input.db} &> {log}"
 
-
-all_gather = expand("output/gather/{sample}.csv", sample=SAMPLES)
-
-rule parse:
+rule combine_results:
     input:
-        all_gather
+        expand("output/gather/{sample}.csv", sample=SAMPLES),
     output:
-        "output/combined_gather.csv"
-    run: 
+        "output/combined_results.csv",
+    conda:
+        SOURMASH_ENV
+    log:
+        "output/log/combine_results.log",
+    run:
         import pandas as pd
-        import os
-        combined = dict()
-
+        combined = {}
         for sample_path in input:
-
-            sample_file = os.path.basename(sample_path)
-            sample = os.path.splitext(sample_file)[0]
-
+            sample = os.path.splitext(os.path.basename(sample_path))[0]
             df = pd.read_csv(sample_path)
-
-            #df = df.loc[df.potential_false_negative == False] # not available in my version
-            df = df.loc[df.intersect_bp >= 25000]
-            #df = df.loc[df['f_match'] > 0.01] # I experiment with there, but at the end keep it commeted out
-
-            combined[sample]=df.set_index("name").f_unique_weighted
-
-
-
-        D = pd.concat(combined,axis=1)
+            df = df.loc[df.intersect_bp >= config["threshold_bp"]]
+            combined[sample] = df.set_index("name").f_unique_weighted
+        D = pd.concat(combined, axis=1).fillna(0)
         D.to_csv(output[0])
-
-rule tar:
-    input:
-        all_gather
-    output:
-        "output/gather.tar.gz"
-    shell:
-        "tar -czf {output} {input}"
-
-        

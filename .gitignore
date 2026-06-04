@@ -1,0 +1,10 @@
+output/
+.snakemake/
+sigs/
+OSU.zip
+Subspecies.zip
+test/test_reads/
+test/test_reads.tar.gz
+*.sbt.zip
+*.tar.gz
+.DS_Store
